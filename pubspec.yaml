@@ -1,0 +1,42 @@
+name: reminder_app
+description: A new Flutter project for a reminder application.
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI and Utility Packages
+  cupertino_icons: ^1.0.2
+  fl_chart: ^0.63.0
+  table_calendar: ^3.0.9
+  flutter_svg: ^2.0.7
+  intl: ^0.18.1
+  
+  # For Local Storage
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  path_provider: ^2.1.3 # Updated
+  
+  # For Local Notifications
+  flutter_local_notifications: ^17.1.2 # Updated to fix the build error
+  timezone: ^0.9.3 # Updated
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  
+  flutter_lints: ^3.0.0 # Updated
+
+  # For Hive code generation
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.9
+
+flutter:
+  uses-material-design: true
