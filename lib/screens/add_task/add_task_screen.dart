@@ -6,7 +6,9 @@ import 'package:reminder_app/utils/app_colors.dart';
 import 'package:reminder_app/utils/notification_service.dart';
 
 class AddTaskScreen extends StatefulWidget {
-  const AddTaskScreen({super.key});
+  final DateTime? initialDate;
+
+  const AddTaskScreen({super.key, this.initialDate});
 
   @override
   State<AddTaskScreen> createState() => _AddTaskScreenState();
@@ -15,10 +17,12 @@ class AddTaskScreen extends StatefulWidget {
 class _AddTaskScreenState extends State<AddTaskScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
+  final _notesController = TextEditingController();
   DateTime? _selectedDate;
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
   int? _selectedReminder = 0;
+  int _selectedPriority = 2; // 1 = High/Top, 2 = Medium, 3 = Low
 
   final List<Map<String, dynamic>> _reminderOptions = [
     {'value': 0, 'label': 'No reminder'},
@@ -32,7 +36,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedDate = DateTime.now();
+    _selectedDate = widget.initialDate ?? DateTime.now();
     _startTime = TimeOfDay.now();
     _endTime =
         TimeOfDay.fromDateTime(DateTime.now().add(const Duration(hours: 1)));
@@ -45,8 +49,9 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
     );
-    if (picked != null && picked != _selectedDate)
+    if (picked != null && picked != _selectedDate) {
       setState(() => _selectedDate = picked);
+    }
   }
 
   Future<void> _pickTime(BuildContext context,
@@ -97,11 +102,15 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         }
 
         final newTask = Task(
-          title: _titleController.text,
+          title: _titleController.text.trim(),
           startTime: finalStartTime,
           endTime: finalEndTime,
           isCompleted: false,
           reminderMinutesBefore: _selectedReminder,
+          priority: _selectedPriority,
+          notes: _notesController.text.trim().isEmpty
+              ? null
+              : _notesController.text.trim(),
         );
 
         final int taskKey = await tasksBox.add(newTask);
@@ -114,9 +123,6 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
             body: _titleController.text,
             scheduledTime: finalStartTime,
           );
-        } else {
-          print(
-              "Main notification not scheduled because start time is in the past.");
         }
 
         // Schedule the pre-task reminder notification
@@ -128,18 +134,15 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
               id: taskKey + 1000000,
               title: 'Reminder!',
               body:
-                  "${_titleController.text} is starting in $_selectedReminder minutes.",
+                  "${_titleController.text} starts in $_selectedReminder minutes.",
               scheduledTime: reminderTime,
             );
-          } else {
-            // FIX: Show a warning to the user
+          } else if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                   content: Text(
-                      'Reminder time of ${DateFormat.jm().format(reminderTime)} is in the past and was not scheduled.')),
+                      'Reminder time of ${DateFormat.jm().format(reminderTime)} was in the past.')),
             );
-            print(
-                "Reminder notification not scheduled because reminder time is in the past.");
           }
         }
 
@@ -151,14 +154,17 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   @override
   void dispose() {
     _titleController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Add New Task'),
+        title: const Text('Add to Daily Planner',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: AppColors.background,
         elevation: 0,
         foregroundColor: AppColors.textDark,
@@ -169,43 +175,87 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
           key: _formKey,
           child: ListView(
             children: <Widget>[
+              // Title Field
               TextFormField(
                 controller: _titleController,
-                decoration: const InputDecoration(
-                    labelText: 'Task Title', border: OutlineInputBorder()),
-                validator: (value) => (value == null || value.isEmpty)
+                decoration: InputDecoration(
+                  labelText: 'Task or Time-Block Title',
+                  hintText: 'e.g. Deep Work on Project, Team Sync',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                validator: (value) => (value == null || value.trim().isEmpty)
                     ? 'Please enter a title'
                     : null,
               ),
-              const SizedBox(height: 20),
-              _buildDateTimePicker(
-                label: 'Date',
-                text: _selectedDate != null
-                    ? DateFormat.yMMMd().format(_selectedDate!)
-                    : 'Not Set',
-                onPressed: () => _pickDate(context),
+              const SizedBox(height: 18),
+
+              // Priority Selector (1 = Top Priority, 2 = Medium, 3 = Low)
+              const Text('Priority Level',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _buildPriorityChip(1, 'Top Priority ⭐', AppColors.priorityHigh),
+                  const SizedBox(width: 8),
+                  _buildPriorityChip(2, 'Medium', AppColors.priorityMedium),
+                  const SizedBox(width: 8),
+                  _buildPriorityChip(3, 'Low', AppColors.priorityLow),
+                ],
               ),
               const SizedBox(height: 20),
-              _buildDateTimePicker(
-                label: 'Start Time',
-                text: _startTime != null
-                    ? _startTime!.format(context)
-                    : 'Not Set',
-                onPressed: () => _pickTime(context, isStartTime: true),
+
+              // Date & Time pickers
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.cardBorder),
+                ),
+                child: Column(
+                  children: [
+                    _buildDateTimePicker(
+                      label: 'Date',
+                      text: _selectedDate != null
+                          ? DateFormat.yMMMd().format(_selectedDate!)
+                          : 'Not Set',
+                      icon: Icons.calendar_today_rounded,
+                      onPressed: () => _pickDate(context),
+                    ),
+                    const Divider(height: 24),
+                    _buildDateTimePicker(
+                      label: 'Start Time',
+                      text: _startTime != null
+                          ? _startTime!.format(context)
+                          : 'Not Set',
+                      icon: Icons.access_time_rounded,
+                      onPressed: () => _pickTime(context, isStartTime: true),
+                    ),
+                    const Divider(height: 24),
+                    _buildDateTimePicker(
+                      label: 'End Time',
+                      text: _endTime != null
+                          ? _endTime!.format(context)
+                          : 'Not Set',
+                      icon: Icons.timer_outlined,
+                      onPressed: () => _pickTime(context, isStartTime: false),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 20),
-              _buildDateTimePicker(
-                label: 'End Time',
-                text: _endTime != null ? _endTime!.format(context) : 'Not Set',
-                onPressed: () => _pickTime(context, isStartTime: false),
-              ),
-              const SizedBox(height: 20),
+
+              // Reminder Dropdown
               DropdownButtonFormField<int>(
                 value: _selectedReminder,
-                decoration: const InputDecoration(
-                  labelText: 'Remind Me (before start)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.notifications_active_outlined),
+                decoration: InputDecoration(
+                  labelText: 'Reminder before start',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  prefixIcon: const Icon(Icons.notifications_active_outlined),
                 ),
                 items: _reminderOptions
                     .map((option) => DropdownMenuItem<int>(
@@ -215,19 +265,34 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                     .toList(),
                 onChanged: (value) => setState(() => _selectedReminder = value),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 20),
+
+              // Optional Notes Field
+              TextFormField(
+                controller: _notesController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: 'Notes or Key Deliverables (Optional)',
+                  hintText: 'Add sub-points, links, or context...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 30),
+
               ElevatedButton(
                 onPressed: _saveTask,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: AppColors.textDark,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
+                      borderRadius: BorderRadius.circular(18)),
                   textStyle: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold),
+                      fontSize: 17, fontWeight: FontWeight.bold),
                 ),
-                child: const Text('Save Task'),
+                child: const Text('Add to Schedule'),
               ),
             ],
           ),
@@ -236,21 +301,63 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     );
   }
 
-  Widget _buildDateTimePicker(
-      {required String label,
-      required String text,
-      required VoidCallback onPressed}) {
+  Widget _buildPriorityChip(int level, String label, Color color) {
+    final isSelected = _selectedPriority == level;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedPriority = level),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? color.withValues(alpha: 0.2)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected ? color : AppColors.cardBorder,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? color : AppColors.textDark,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateTimePicker({
+    required String label,
+    required String text,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(fontSize: 16)),
+        Row(
+          children: [
+            Icon(icon, size: 20, color: AppColors.textLight),
+            const SizedBox(width: 10),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w500)),
+          ],
+        ),
         TextButton(
           onPressed: onPressed,
           child: Text(text,
               style: const TextStyle(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.accent)),
+                  color: AppColors.textDark)),
         ),
       ],
     );

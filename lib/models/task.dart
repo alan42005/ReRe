@@ -7,7 +7,6 @@ class Task extends HiveObject {
   @HiveField(0)
   late String title;
 
-  // Renamed from dueDate to endTime for clarity
   @HiveField(1)
   late DateTime endTime;
 
@@ -20,9 +19,17 @@ class Task extends HiveObject {
   @HiveField(4)
   int? reminderMinutesBefore;
 
-  // New field for the task's start time
   @HiveField(5)
   late DateTime startTime;
+
+  @HiveField(6)
+  int priority; // 1 = Top Priority (Must Do), 2 = Medium, 3 = Low
+
+  @HiveField(7)
+  String? notes;
+
+  @HiveField(8)
+  int focusMinutesSpent;
 
   Task({
     required this.title,
@@ -31,5 +38,10 @@ class Task extends HiveObject {
     this.isCompleted = false,
     this.category,
     this.reminderMinutesBefore,
+    this.priority = 2,
+    this.notes,
+    this.focusMinutesSpent = 0,
   });
+
+  bool get isTopPriority => priority == 1;
 }
