@@ -32,6 +32,9 @@ class Habit extends HiveObject {
   @HiveField(8)
   int? reminderMinuteOfDay;
 
+  @HiveField(9)
+  String? stackedAfterHabitId;
+
   Habit({
     required this.id,
     required this.title,
@@ -42,6 +45,7 @@ class Habit extends HiveObject {
     this.targetPerDay = 1,
     DateTime? createdAt,
     this.reminderMinuteOfDay,
+    this.stackedAfterHabitId,
   })  : completedDates = completedDates ?? [],
         createdAt = createdAt ?? DateTime.now();
 

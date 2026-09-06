@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:reminder_app/models/focus_session.dart';
 import 'package:reminder_app/models/habit.dart';
 import 'package:reminder_app/models/task.dart';
@@ -10,6 +11,7 @@ import 'package:reminder_app/screens/planner/planner_screen.dart';
 import 'package:reminder_app/screens/statistics/statistics_screen.dart';
 import 'package:reminder_app/utils/app_colors.dart';
 import 'package:reminder_app/utils/notification_service.dart';
+import 'package:reminder_app/utils/widget_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +26,9 @@ Future<void> main() async {
   await Hive.openBox<Habit>('habits');
   await Hive.openBox<FocusSession>('focus_logs');
   await Hive.openBox('settings');
+
+  // Sync initial Top 3 Priorities to Android Home Screen Widget
+  await WidgetService.updatePrioritiesWidget();
 
   runApp(const MyApp());
 }
@@ -52,6 +57,12 @@ class MyApp extends StatelessWidget {
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
+  static final ValueNotifier<int> tabNotifier = ValueNotifier<int>(0);
+
+  static void switchToTab(int index) {
+    tabNotifier.value = index;
+  }
+
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
@@ -67,10 +78,42 @@ class _MainScreenState extends State<MainScreen> {
     StatisticsScreen(),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    MainScreen.tabNotifier.addListener(_handleTabChange);
+
+    // Listen for Home Screen Widget click actions (e.g. Start Focus Timer button)
+    HomeWidget.initiallyLaunchedFromHomeWidget().then(_handleWidgetUri);
+    HomeWidget.widgetClicked.listen(_handleWidgetUri);
+  }
+
+  void _handleWidgetUri(Uri? uri) {
+    if (uri != null) {
+      if (uri.host == 'focus' || uri.scheme == 'rere' && uri.host == 'focus') {
+        MainScreen.switchToTab(2); // Focus tab
+      } else {
+        MainScreen.switchToTab(0); // Planner tab
+      }
+    }
+  }
+
+  void _handleTabChange() {
+    if (mounted) {
+      setState(() {
+        _selectedIndex = MainScreen.tabNotifier.value;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    MainScreen.tabNotifier.removeListener(_handleTabChange);
+    super.dispose();
+  }
+
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    MainScreen.switchToTab(index);
   }
 
   @override

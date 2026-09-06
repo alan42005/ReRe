@@ -37,13 +37,42 @@ class NotificationService {
     tz.initializeTimeZones();
 
     await flutterLocalNotificationsPlugin.initialize(initializationSettings);
-    debugPrint("NotificationService: Initialization complete.");
 
-    // This function is called when the app starts.
+    // Create high-priority Notification Channels for Android 8.0+
+    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    if (androidImplementation != null) {
+      const AndroidNotificationChannel reminderChannel =
+          AndroidNotificationChannel(
+        'reminder_channel_id',
+        'Daily Reminders & Tasks',
+        description: 'Time-sensitive task reminders and alerts',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      );
+
+      const AndroidNotificationChannel focusChannel =
+          AndroidNotificationChannel(
+        'focus_channel',
+        'Focus Timer Sessions',
+        description: 'Notifications when deep work or pomodoro sessions complete',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      );
+
+      await androidImplementation.createNotificationChannel(reminderChannel);
+      await androidImplementation.createNotificationChannel(focusChannel);
+      debugPrint("NotificationService: Notification channels registered.");
+    }
+
     await _requestAndroidPermission();
+    debugPrint("NotificationService: Initialization complete.");
   }
 
-  // This method handles asking the user for the necessary permissions.
   Future<void> _requestAndroidPermission() async {
     if (defaultTargetPlatform == TargetPlatform.android) {
       debugPrint("NotificationService: Requesting Android permissions...");
@@ -51,13 +80,11 @@ class NotificationService {
           flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
 
-      // This line asks for the basic notification permission.
       final bool? notificationPermission =
           await androidImplementation?.requestNotificationsPermission();
       debugPrint(
           "NotificationService: Notification permission granted: $notificationPermission");
 
-      // Exact alarm permission
       final bool? exactAlarmsPermission =
           await androidImplementation?.requestExactAlarmsPermission();
       debugPrint(
@@ -66,25 +93,26 @@ class NotificationService {
   }
 
   Future<void> showTestNotification() async {
-    debugPrint("NotificationService: Attempting to show a test notification...");
+    debugPrint("NotificationService: Showing test notification...");
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
-      'test_channel_id',
-      'Test Notifications',
-      channelDescription: 'Channel for testing notifications',
+      'reminder_channel_id',
+      'Daily Reminders & Tasks',
+      channelDescription: 'Time-sensitive task reminders and alerts',
       importance: Importance.max,
       priority: Priority.high,
       playSound: true,
+      enableVibration: true,
     );
     const NotificationDetails platformDetails =
         NotificationDetails(android: androidDetails);
+
     await flutterLocalNotificationsPlugin.show(
       999,
-      'Test Notification',
-      'If you see this, the notification system is working!',
+      'ReRe Notification System Active! 🔔',
+      'Your reminders and timers are ready and configured.',
       platformDetails,
     );
-    debugPrint("NotificationService: show() method called for test notification.");
   }
 
   Future<void> scheduleNotification({
@@ -93,42 +121,47 @@ class NotificationService {
     required String body,
     required DateTime scheduledTime,
   }) async {
-    debugPrint(
-        "NotificationService: Scheduling notification ID $id for: $scheduledTime");
-    debugPrint("NotificationService: Current time is: ${DateTime.now()}");
+    final durationUntil = scheduledTime.difference(DateTime.now());
 
-    if (scheduledTime.isBefore(DateTime.now())) {
-      debugPrint("NotificationService: CANCELED - Scheduled time is in the past.");
+    if (durationUntil.isNegative) {
+      debugPrint("NotificationService: CANCELED - Scheduled time is in the past: $scheduledTime");
       return;
     }
 
+    // Mathematically exact target time in local timezone
+    final tzTarget = tz.TZDateTime.now(tz.local).add(durationUntil);
+
+    debugPrint("NotificationService: Scheduling ID $id for $tzTarget (in ${durationUntil.inMinutes}m)");
+
     const NotificationDetails platformChannelSpecifics = NotificationDetails(
-        android: AndroidNotificationDetails(
-          'reminder_channel_id',
-          'Reminders',
-          channelDescription: 'Channel for reminder notifications',
-          importance: Importance.max,
-          priority: Priority.high,
-          playSound: true,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ));
+      android: AndroidNotificationDetails(
+        'reminder_channel_id',
+        'Daily Reminders & Tasks',
+        channelDescription: 'Time-sensitive task reminders and alerts',
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: true,
+        enableVibration: true,
+        icon: '@mipmap/ic_launcher',
+      ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    );
 
     await flutterLocalNotificationsPlugin.zonedSchedule(
       id,
       title,
       body,
-      tz.TZDateTime.from(scheduledTime, tz.local),
+      tzTarget,
       platformChannelSpecifics,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
     );
-    debugPrint("NotificationService: zonedSchedule() method called for ID $id.");
+    debugPrint("NotificationService: Successfully scheduled notification ID $id.");
   }
 
   Future<void> cancelNotification(int id) async {

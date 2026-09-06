@@ -3,8 +3,10 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:reminder_app/models/task.dart';
 import 'package:reminder_app/screens/focus/focus_screen.dart';
+import 'package:flutter/services.dart';
 import 'package:reminder_app/utils/app_colors.dart';
 import 'package:reminder_app/utils/notification_service.dart';
+import 'package:reminder_app/utils/widget_service.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'dart:collection';
 
@@ -179,8 +181,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
             value: task.isCompleted,
             activeColor: AppColors.primary,
             onChanged: (val) {
+              HapticFeedback.mediumImpact();
               task.isCompleted = val ?? false;
               task.save();
+              WidgetService.updatePrioritiesWidget();
               if (task.isCompleted && taskKey != null) {
                 NotificationService().cancelNotification(taskKey);
                 NotificationService().cancelNotification(taskKey + 1000000);
@@ -236,6 +240,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 NotificationService().cancelNotification(taskKey + 1000000);
               }
               task.delete();
+              WidgetService.updatePrioritiesWidget();
             },
           ),
         ],

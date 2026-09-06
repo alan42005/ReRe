@@ -27,7 +27,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.reminder_app"
-        minSdk = 21 // It's good practice to set a specific minSdk
+        minSdk = 23 // Required by androidx.work:work-runtime-ktx
         // Match targetSdk with compileSdk
         targetSdk = 35
         versionCode = flutter.versionCode

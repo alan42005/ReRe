@@ -6,8 +6,10 @@ import 'package:reminder_app/models/task.dart';
 import 'package:reminder_app/screens/add_task/add_task_screen.dart';
 import 'package:reminder_app/screens/focus/focus_screen.dart';
 import 'package:reminder_app/screens/habits/add_habit_dialog.dart';
+import 'package:flutter/services.dart';
 import 'package:reminder_app/utils/app_colors.dart';
 import 'package:reminder_app/utils/notification_service.dart';
+import 'package:reminder_app/utils/widget_service.dart';
 import 'dart:math' as math;
 
 class PlannerScreen extends StatefulWidget {
@@ -95,6 +97,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
       task.endTime = newStart.add(oldDuration);
       await task.save();
     }
+    HapticFeedback.mediumImpact();
+    await WidgetService.updatePrioritiesWidget();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -528,7 +532,37 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   final color = Color(habit.colorValue);
 
                   return GestureDetector(
-                    onTap: () => setState(() => habit.toggleCompletion(_selectedDate)),
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      final wasDone = habit.isCompletedOn(_selectedDate);
+                      habit.toggleCompletion(_selectedDate);
+                      setState(() {});
+
+                      if (!wasDone) {
+                        // Check if any habit is stacked after this one
+                        Habit? nextHabit;
+                        for (final h in habits) {
+                          if (h.stackedAfterHabitId == habit.id &&
+                              !h.isCompletedOn(_selectedDate)) {
+                            nextHabit = h;
+                            break;
+                          }
+                        }
+                        if (nextHabit != null) {
+                          HapticFeedback.heavyImpact();
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                  '🎉 "${habit.title}" complete! Next stack: "${nextHabit.title}"'),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
+                            ),
+                          );
+                        }
+                      }
+                    },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
@@ -607,8 +641,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
               Checkbox(
                 value: task.isCompleted,
                 onChanged: (bool? val) {
+                  HapticFeedback.mediumImpact();
                   task.isCompleted = val ?? false;
                   task.save();
+                  WidgetService.updatePrioritiesWidget();
                   if (task.isCompleted && taskKey != null) {
                     NotificationService().cancelNotification(taskKey);
                     NotificationService().cancelNotification(taskKey + 1000000);
@@ -719,6 +755,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
                     NotificationService().cancelNotification(taskKey + 1000000);
                   }
                   task.delete();
+                  WidgetService.updatePrioritiesWidget();
                 },
               ),
             ],

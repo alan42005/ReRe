@@ -19,6 +19,7 @@ class _AddHabitDialogState extends State<AddHabitDialog> {
   late String _selectedCategory;
   late Color _selectedColor;
   late int _selectedIconCode;
+  String? _selectedStackHabitId;
 
   final List<String> _categories = [
     'Health',
@@ -40,6 +41,7 @@ class _AddHabitDialogState extends State<AddHabitDialog> {
     _selectedColor =
         h != null ? Color(h.colorValue) : AppColors.habitPalette.first;
     _selectedIconCode = h?.iconCode ?? _icons.first.codePoint;
+    _selectedStackHabitId = h?.stackedAfterHabitId;
   }
 
   @override
@@ -57,6 +59,7 @@ class _AddHabitDialogState extends State<AddHabitDialog> {
         habit.category = _selectedCategory;
         habit.colorValue = _selectedColor.toARGB32();
         habit.iconCode = _selectedIconCode;
+        habit.stackedAfterHabitId = _selectedStackHabitId;
         habit.save();
       } else {
         final newHabit = Habit(
@@ -65,6 +68,7 @@ class _AddHabitDialogState extends State<AddHabitDialog> {
           category: _selectedCategory,
           colorValue: _selectedColor.toARGB32(),
           iconCode: _selectedIconCode,
+          stackedAfterHabitId: _selectedStackHabitId,
         );
         box.add(newHabit);
       }
@@ -75,6 +79,10 @@ class _AddHabitDialogState extends State<AddHabitDialog> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.habitToEdit != null;
+    final habitsBox = Hive.box<Habit>('habits');
+    final otherHabits = habitsBox.values
+        .where((h) => widget.habitToEdit == null || h.id != widget.habitToEdit!.id)
+        .toList();
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -209,6 +217,49 @@ class _AddHabitDialogState extends State<AddHabitDialog> {
                     }).toList(),
                   ),
                 ),
+
+                // Habit Stacking Section (Atomic Habits)
+                if (otherHabits.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  const Row(
+                    children: [
+                      Icon(Icons.link_rounded, size: 18, color: AppColors.accent),
+                      SizedBox(width: 6),
+                      Text(
+                        'Habit Stacking (Atomic Habits)',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Trigger this habit immediately after completing a cue habit.',
+                    style: TextStyle(color: AppColors.textLight, fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String?>(
+                    value: _selectedStackHabitId,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('None (Standalone Habit)'),
+                      ),
+                      ...otherHabits.map((h) => DropdownMenuItem<String?>(
+                            value: h.id,
+                            child: Text('Immediately after: "${h.title}"'),
+                          )),
+                    ],
+                    onChanged: (val) => setState(() => _selectedStackHabitId = val),
+                  ),
+                ],
+
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,

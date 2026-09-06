@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:reminder_app/models/habit.dart';
@@ -15,12 +16,66 @@ class HabitsScreen extends StatefulWidget {
 
 class _HabitsScreenState extends State<HabitsScreen> {
   final Box<Habit> habitsBox = Hive.box<Habit>('habits');
+  String? _highlightedHabitId;
 
   void _openAddHabitDialog([Habit? habit]) {
     showDialog(
       context: context,
       builder: (context) => AddHabitDialog(habitToEdit: habit),
     );
+  }
+
+  void _onHabitToggled(Habit habit, DateTime day, List<Habit> allHabits) {
+    HapticFeedback.mediumImpact();
+    final wasDone = habit.isCompletedOn(day);
+    habit.toggleCompletion(day);
+    setState(() {});
+
+    if (!wasDone) {
+      // Check if any habit is chained/stacked after this habit!
+      Habit? nextStackedHabit;
+      for (final h in allHabits) {
+        if (h.stackedAfterHabitId == habit.id && !h.isCompletedOn(day)) {
+          nextStackedHabit = h;
+          break;
+        }
+      }
+
+      if (nextStackedHabit != null) {
+        HapticFeedback.heavyImpact();
+        setState(() {
+          _highlightedHabitId = nextStackedHabit!.id;
+        });
+
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.auto_awesome_rounded,
+                    color: AppColors.primary, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '🎉 "${habit.title}" complete! Next in stack: "${nextStackedHabit.title}"',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.black87,
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+        );
+      } else if (_highlightedHabitId == habit.id) {
+        setState(() {
+          _highlightedHabitId = null;
+        });
+      }
+    }
   }
 
   @override
@@ -106,7 +161,7 @@ class _HabitsScreenState extends State<HabitsScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Daily Habits',
+                      'Daily Habits & Stacks',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -134,7 +189,7 @@ class _HabitsScreenState extends State<HabitsScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final habit = habits[index];
-                      return _buildHabitCard(habit, today);
+                      return _buildHabitCard(habit, today, habits);
                     },
                   ),
                 const SizedBox(height: 80),
@@ -201,7 +256,6 @@ class _HabitsScreenState extends State<HabitsScreen> {
 
   Widget _buildConsistencyHeatmap(List<Habit> habits) {
     final now = DateTime.now();
-    // 35 days (5 weeks)
     final days = List.generate(35, (i) => now.subtract(Duration(days: 34 - i)));
 
     return Container(
@@ -320,25 +374,76 @@ class _HabitsScreenState extends State<HabitsScreen> {
     );
   }
 
-  Widget _buildHabitCard(Habit habit, DateTime today) {
+  Widget _buildHabitCard(Habit habit, DateTime today, List<Habit> allHabits) {
     final isDoneToday = habit.isCompletedOn(today);
     final habitColor = Color(habit.colorValue);
+    final isHighlighted = _highlightedHabitId == habit.id;
 
-    return Container(
+    // Find cue habit if stacked
+    Habit? cueHabit;
+    if (habit.stackedAfterHabitId != null) {
+      for (final h in allHabits) {
+        if (h.id == habit.stackedAfterHabitId) {
+          cueHabit = h;
+          break;
+        }
+      }
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isHighlighted
+            ? const Color(0xFFFFFDF0)
+            : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDoneToday
-              ? habitColor.withValues(alpha: 0.5)
-              : AppColors.cardBorder,
-          width: isDoneToday ? 1.5 : 1,
+          color: isHighlighted
+              ? Colors.amber.shade700
+              : (isDoneToday
+                  ? habitColor.withValues(alpha: 0.5)
+                  : AppColors.cardBorder),
+          width: isHighlighted ? 2.5 : (isDoneToday ? 1.5 : 1),
         ),
+        boxShadow: [
+          if (isHighlighted)
+            BoxShadow(
+              color: Colors.amber.withValues(alpha: 0.25),
+              blurRadius: 14,
+              spreadRadius: 2,
+            ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (isHighlighted) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade700,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.bolt_rounded, size: 14, color: Colors.white),
+                  SizedBox(width: 4),
+                  Text(
+                    '⚡ NEXT UP IN YOUR HABIT STACK',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           Row(
             children: [
               Container(
@@ -371,7 +476,9 @@ class _HabitsScreenState extends State<HabitsScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Row(
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -389,8 +496,8 @@ class _HabitsScreenState extends State<HabitsScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
                         Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(Icons.local_fire_department_rounded,
                                 size: 16, color: Colors.orange),
@@ -404,14 +511,39 @@ class _HabitsScreenState extends State<HabitsScreen> {
                             ),
                           ],
                         ),
+                        if (cueHabit != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.accent.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.link_rounded,
+                                    size: 13, color: AppColors.accent),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'After "${cueHabit.title}"',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.accent,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
                   ],
                 ),
               ),
-              // Complete button
+              // Complete button with vibration and chain reaction trigger
               GestureDetector(
-                onTap: () => setState(() => habit.toggleCompletion(today)),
+                onTap: () => _onHabitToggled(habit, today, allHabits),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   width: 38,
@@ -430,8 +562,8 @@ class _HabitsScreenState extends State<HabitsScreen> {
                 ),
               ),
               PopupMenuButton<String>(
-                icon:
-                    const Icon(Icons.more_vert_rounded, color: AppColors.textLight),
+                icon: const Icon(Icons.more_vert_rounded,
+                    color: AppColors.textLight),
                 onSelected: (value) {
                   if (value == 'edit') {
                     _openAddHabitDialog(habit);
@@ -457,7 +589,8 @@ class _HabitsScreenState extends State<HabitsScreen> {
                         Icon(Icons.delete_outline,
                             size: 18, color: Colors.redAccent),
                         SizedBox(width: 8),
-                        Text('Delete', style: TextStyle(color: Colors.redAccent)),
+                        Text('Delete',
+                            style: TextStyle(color: Colors.redAccent)),
                       ],
                     ),
                   ),
@@ -475,7 +608,6 @@ class _HabitsScreenState extends State<HabitsScreen> {
 
   Widget _build7DayStrip(Habit habit) {
     final now = DateTime.now();
-    // Mon to Sun or last 7 days
     final days = List.generate(7, (i) => now.subtract(Duration(days: 6 - i)));
 
     return Container(
@@ -556,7 +688,7 @@ class _HabitsScreenState extends State<HabitsScreen> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Create your first daily habit like "Morning Meditation" or "Read 15 Pages" to begin building streaks!',
+            'Create daily habits and chain them together with Habit Stacking to build unstoppable momentum!',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textLight, fontSize: 14),
           ),

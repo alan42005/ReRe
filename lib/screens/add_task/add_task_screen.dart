@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
+import 'package:reminder_app/main.dart';
 import 'package:reminder_app/models/task.dart';
 import 'package:reminder_app/utils/app_colors.dart';
 import 'package:reminder_app/utils/notification_service.dart';
+import 'package:reminder_app/utils/widget_service.dart';
 
 class AddTaskScreen extends StatefulWidget {
   final DateTime? initialDate;
@@ -145,6 +148,10 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
             );
           }
         }
+
+        HapticFeedback.mediumImpact();
+        await WidgetService.updatePrioritiesWidget();
+        MainScreen.switchToTab(0);
 
         if (mounted) Navigator.pop(context);
       }
