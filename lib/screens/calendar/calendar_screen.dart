@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:intl/intl.dart';
 import 'package:reminder_app/models/task.dart';
-import 'package:reminder_app/screens/home/home_screen.dart'; // Re-using the TaskItem widget
+import 'package:reminder_app/screens/focus/focus_screen.dart';
 import 'package:reminder_app/utils/app_colors.dart';
+import 'package:reminder_app/utils/notification_service.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'dart:collection';
 
@@ -19,7 +21,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
-  // Using a LinkedHashMap is recommended for TableCalendar's events.
   LinkedHashMap<DateTime, List<Task>> _events = LinkedHashMap();
 
   @override
@@ -31,14 +32,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
     _selectedTasks = ValueNotifier(_getTasksForDay(_selectedDay!));
   }
 
-  // Groups all tasks from the Hive box by the day they start.
   void _groupTasksByDay() {
     _events = LinkedHashMap<DateTime, List<Task>>(
       equals: isSameDay,
       hashCode: (key) => key.day * 1000000 + key.month * 10000 + key.year,
     );
     for (var task in tasksBox.values) {
-      // Normalize the date to UTC to avoid timezone issues.
       final day = DateTime.utc(
           task.startTime.year, task.startTime.month, task.startTime.day);
       if (_events[day] == null) {
@@ -48,13 +47,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
-  // Returns the list of tasks for a given day.
   List<Task> _getTasksForDay(DateTime day) {
     final utcDay = DateTime.utc(day.year, day.month, day.day);
     return _events[utcDay] ?? [];
   }
 
-  // Called when the user taps on a day in the calendar.
   void _onDaySelected(DateTime selectedDay, DateTime focusedDay) {
     if (!isSameDay(_selectedDay, selectedDay)) {
       setState(() {
@@ -68,29 +65,25 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        leading: const Padding(
-          padding: EdgeInsets.all(8.0),
-          child: CircleAvatar(
-            backgroundImage: NetworkImage('https://placehold.co/100x100/png'),
-          ),
-        ),
         title: const Text(
           'Calendar View',
-          style:
-              TextStyle(color: AppColors.textDark, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AppColors.textDark,
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+          ),
         ),
       ),
-      // Listens for changes in the Hive box and rebuilds the UI.
       body: ValueListenableBuilder<Box<Task>>(
         valueListenable: tasksBox.listenable(),
         builder: (context, box, _) {
-          _groupTasksByDay(); // Regroup tasks whenever the box changes
-          // Post-frame callback to safely update the selected tasks list.
+          _groupTasksByDay();
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
+            if (mounted && _selectedDay != null) {
               _selectedTasks.value = _getTasksForDay(_selectedDay!);
             }
           });
@@ -101,7 +94,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(30),
+                    borderRadius: BorderRadius.circular(24),
                     border: Border.all(color: AppColors.cardBorder),
                   ),
                   child: TableCalendar<Task>(
@@ -116,11 +109,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       titleCentered: true,
                       formatButtonVisible: false,
                       titleTextStyle:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                     ),
                     calendarStyle: CalendarStyle(
                       todayDecoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.5),
+                        color: AppColors.primary.withValues(alpha: 0.5),
                         shape: BoxShape.circle,
                       ),
                       selectedDecoration: const BoxDecoration(
@@ -145,9 +138,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     if (tasks.isEmpty) {
                       return const Center(
                         child: Text(
-                          "No tasks for this day.",
+                          "No schedule blocks for this day.",
                           style: TextStyle(
-                              color: AppColors.textLight, fontSize: 16),
+                              color: AppColors.textLight, fontSize: 15),
                         ),
                       );
                     }
@@ -156,8 +149,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       itemCount: tasks.length,
                       itemBuilder: (context, index) {
                         final task = tasks[index];
-                        final taskKey = task.key as int;
-                        return TaskItem(task: task, taskKey: taskKey);
+                        return _buildCalendarTaskItem(task);
                       },
                     );
                   },
@@ -166,6 +158,87 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildCalendarTaskItem(Task task) {
+    final taskKey = task.key as int?;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Row(
+        children: [
+          Checkbox(
+            value: task.isCompleted,
+            activeColor: AppColors.primary,
+            onChanged: (val) {
+              task.isCompleted = val ?? false;
+              task.save();
+              if (task.isCompleted && taskKey != null) {
+                NotificationService().cancelNotification(taskKey);
+                NotificationService().cancelNotification(taskKey + 1000000);
+              }
+            },
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: task.isCompleted
+                        ? AppColors.textLight
+                        : AppColors.textDark,
+                    decoration: task.isCompleted
+                        ? TextDecoration.lineThrough
+                        : TextDecoration.none,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "${DateFormat.jm().format(task.startTime)} - ${DateFormat.jm().format(task.endTime)}",
+                  style:
+                      const TextStyle(color: AppColors.textLight, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.timer_outlined,
+                color: AppColors.accent, size: 20),
+            tooltip: 'Focus',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (ctx) =>
+                      FocusScreen(initialTaskTitle: task.title),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline,
+                color: Colors.redAccent, size: 20),
+            onPressed: () {
+              if (taskKey != null) {
+                NotificationService().cancelNotification(taskKey);
+                NotificationService().cancelNotification(taskKey + 1000000);
+              }
+              task.delete();
+            },
+          ),
+        ],
       ),
     );
   }

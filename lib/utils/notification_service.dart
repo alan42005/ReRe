@@ -17,7 +17,7 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   Future<void> init() async {
-    print("NotificationService: Initializing...");
+    debugPrint("NotificationService: Initializing...");
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -37,7 +37,7 @@ class NotificationService {
     tz.initializeTimeZones();
 
     await flutterLocalNotificationsPlugin.initialize(initializationSettings);
-    print("NotificationService: Initialization complete.");
+    debugPrint("NotificationService: Initialization complete.");
 
     // This function is called when the app starts.
     await _requestAndroidPermission();
@@ -46,7 +46,7 @@ class NotificationService {
   // This method handles asking the user for the necessary permissions.
   Future<void> _requestAndroidPermission() async {
     if (defaultTargetPlatform == TargetPlatform.android) {
-      print("NotificationService: Requesting Android permissions...");
+      debugPrint("NotificationService: Requesting Android permissions...");
       final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
           flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
@@ -54,19 +54,19 @@ class NotificationService {
       // This line asks for the basic notification permission.
       final bool? notificationPermission =
           await androidImplementation?.requestNotificationsPermission();
-      print(
+      debugPrint(
           "NotificationService: Notification permission granted: $notificationPermission");
 
-      // THIS IS THE LINE THAT ASKS FOR THE "ALARMS & REMINDERS" PERMISSION
+      // Exact alarm permission
       final bool? exactAlarmsPermission =
           await androidImplementation?.requestExactAlarmsPermission();
-      print(
+      debugPrint(
           "NotificationService: Exact alarms permission granted: $exactAlarmsPermission");
     }
   }
 
   Future<void> showTestNotification() async {
-    print("NotificationService: Attempting to show a test notification...");
+    debugPrint("NotificationService: Attempting to show a test notification...");
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
       'test_channel_id',
@@ -84,7 +84,7 @@ class NotificationService {
       'If you see this, the notification system is working!',
       platformDetails,
     );
-    print("NotificationService: show() method called for test notification.");
+    debugPrint("NotificationService: show() method called for test notification.");
   }
 
   Future<void> scheduleNotification({
@@ -93,12 +93,12 @@ class NotificationService {
     required String body,
     required DateTime scheduledTime,
   }) async {
-    print(
+    debugPrint(
         "NotificationService: Scheduling notification ID $id for: $scheduledTime");
-    print("NotificationService: Current time is: ${DateTime.now()}");
+    debugPrint("NotificationService: Current time is: ${DateTime.now()}");
 
     if (scheduledTime.isBefore(DateTime.now())) {
-      print("NotificationService: CANCELED - Scheduled time is in the past.");
+      debugPrint("NotificationService: CANCELED - Scheduled time is in the past.");
       return;
     }
 
@@ -128,11 +128,11 @@ class NotificationService {
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
     );
-    print("NotificationService: zonedSchedule() method called for ID $id.");
+    debugPrint("NotificationService: zonedSchedule() method called for ID $id.");
   }
 
   Future<void> cancelNotification(int id) async {
     await flutterLocalNotificationsPlugin.cancel(id);
-    print("NotificationService: Canceled notification ID $id.");
+    debugPrint("NotificationService: Canceled notification ID $id.");
   }
 }

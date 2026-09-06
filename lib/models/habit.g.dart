@@ -1,56 +1,56 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'task.dart';
+part of 'habit.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator
 // **************************************************************************
 
-class TaskAdapter extends TypeAdapter<Task> {
+class HabitAdapter extends TypeAdapter<Habit> {
   @override
-  final int typeId = 0;
+  final int typeId = 1;
 
   @override
-  Task read(BinaryReader reader) {
+  Habit read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return Task(
-      title: fields[0] as String,
-      startTime: fields[5] as DateTime,
-      endTime: fields[1] as DateTime,
-      isCompleted: fields[2] as bool,
-      category: fields[3] as String?,
-      reminderMinutesBefore: fields[4] as int?,
-      priority: fields[6] as int,
-      notes: fields[7] as String?,
-      focusMinutesSpent: fields[8] as int,
+    return Habit(
+      id: fields[0] as String,
+      title: fields[1] as String,
+      category: fields[2] as String,
+      colorValue: fields[3] as int,
+      iconCode: fields[4] as int,
+      completedDates: (fields[5] as List?)?.cast<String>(),
+      targetPerDay: fields[6] as int,
+      createdAt: fields[7] as DateTime?,
+      reminderMinuteOfDay: fields[8] as int?,
     );
   }
 
   @override
-  void write(BinaryWriter writer, Task obj) {
+  void write(BinaryWriter writer, Habit obj) {
     writer
       ..writeByte(9)
       ..writeByte(0)
-      ..write(obj.title)
+      ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.endTime)
+      ..write(obj.title)
       ..writeByte(2)
-      ..write(obj.isCompleted)
-      ..writeByte(3)
       ..write(obj.category)
+      ..writeByte(3)
+      ..write(obj.colorValue)
       ..writeByte(4)
-      ..write(obj.reminderMinutesBefore)
+      ..write(obj.iconCode)
       ..writeByte(5)
-      ..write(obj.startTime)
+      ..write(obj.completedDates)
       ..writeByte(6)
-      ..write(obj.priority)
+      ..write(obj.targetPerDay)
       ..writeByte(7)
-      ..write(obj.notes)
+      ..write(obj.createdAt)
       ..writeByte(8)
-      ..write(obj.focusMinutesSpent);
+      ..write(obj.reminderMinuteOfDay);
   }
 
   @override
@@ -59,7 +59,7 @@ class TaskAdapter extends TypeAdapter<Task> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is TaskAdapter &&
+      other is HabitAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }

@@ -289,7 +289,7 @@ class DialPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     final progressPaint = Paint()
       ..shader =
-          LinearGradient(colors: [AppColors.secondary, AppColors.primary])
+          const LinearGradient(colors: [AppColors.secondary, AppColors.primary])
               .createShader(Rect.fromCircle(center: center, radius: radius))
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
